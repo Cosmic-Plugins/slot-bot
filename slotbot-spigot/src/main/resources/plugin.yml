@@ -1,0 +1,14 @@
+name: SlotBot
+version: 1.0.0
+main: me.randomhashtags.slotbot.SlotBotSpigot
+api-version: 1.13
+load: POSTWORLD
+authors: [RandomHashTags]
+softdepend:
+  - PlaceholderAPI
+commands:
+  slotbot:
+    permission: SlotBot.command
+    aliases:
+      - slotbots
+      - bot

@@ -1,0 +1,7 @@
+.idea/**
+.gradle/**
+slotbot-common/**
+slotbot-spigot/build/**
+slotbot-spigot/out/**
+slotbot-sponge/build/**
+slotbot-sponge/out/**

@@ -1,0 +1,3 @@
+rootProject.name = 'slotbot'
+
+include 'slotbot-common', 'slotbot-spigot', 'slotbot-sponge'

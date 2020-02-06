@@ -1,0 +1,8 @@
+# Made by RandomHashTags
+big boie:
+  item: "paper"
+  name: "&a&lCustom Slot Bot Item"
+  lore:
+    - "Enchants{Sharpness10;Unbreaking20}"
+    - "&7This item's identifier to use in"
+    - "&7the slot bot rewards is &fbig boie"
