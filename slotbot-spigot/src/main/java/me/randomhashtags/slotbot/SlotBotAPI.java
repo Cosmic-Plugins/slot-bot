@@ -46,12 +46,40 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
     private HashMap<Integer, HashSet<Integer>> slots;
 
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if(args.length >= 1 && args[0].equals("reload") && sender.hasPermission("SlotBot.reload")) {
-            SLOT_BOT.reload();
-        } else if(sender instanceof Player) {
+        final boolean isPlayer = sender instanceof Player;
+        final int length = args.length;
+        if(length >= 1) {
+            switch (args[0]) {
+                case "reload":
+                    if(sender.hasPermission("SlotBot.reload")) {
+                        SLOT_BOT.reload();
+                    } else if(isPlayer) {
+                        view((Player) sender);
+                    }
+                    break;
+                case "give":
+                    if(sender.hasPermission("SlotBot.give")) {
+                        if(length >= 3) {
+                            final String target = args[1];
+                            final Player player = SERVER.getPlayer(target);
+                            if(player != null) {
+                                final ItemStack is = getClone(ticket);
+                                is.setAmount(Integer.parseInt(args[2]));
+                                giveItem(player, is);
+                            }
+                        }
+                    } else if(isPlayer) {
+                        view((Player) sender);
+                    }
+                    break;
+                default:
+                    if(isPlayer) {
+                        view((Player) sender);
+                    }
+                    break;
+            }
+        } else if(isPlayer) {
             view((Player) sender);
-        } else {
-            return false;
         }
         return true;
     }
@@ -250,7 +278,7 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
             }
             removeItem(player, ticket, 1);
             final int slot = ticketSlots.get(inserted);
-            item = ticketUnlocked.clone();
+            item = getClone(ticketUnlocked);
             item.setAmount(inserted+1);
             top.setItem(slot, item);
             player.updateInventory();

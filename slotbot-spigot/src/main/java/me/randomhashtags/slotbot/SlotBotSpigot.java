@@ -11,6 +11,7 @@ public final class SlotBotSpigot extends JavaPlugin {
     @Override
     public void onEnable() {
         getPlugin = this;
+        saveSettings();
         getCommand("slotbot").setExecutor(SlotBotAPI.INSTANCE);
         enable();
     }
@@ -20,8 +21,12 @@ public final class SlotBotSpigot extends JavaPlugin {
         disable();
     }
 
-    public void enable() {
+    private void saveSettings() {
         saveDefaultConfig();
+    }
+
+    public void enable() {
+        saveSettings();
         placeholderapi = Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI");
         CustomItemsAPI.INSTANCE.load();
         SlotBotAPI.INSTANCE.load();
