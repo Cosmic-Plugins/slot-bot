@@ -52,7 +52,7 @@ public enum CustomItemsAPI implements Listener, UVersionable {
     }
 
     public CustomItem valueOf(@NotNull ItemStack is) {
-        if(values != null) {
+        if(is != null && values != null) {
             for(CustomItem item : values) {
                 if(is.isSimilar(item.getItem())) {
                     return item;
