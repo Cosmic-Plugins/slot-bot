@@ -4,10 +4,13 @@ import com.sun.istack.internal.NotNull;
 import me.randomhashtags.slotbot.addon.CustomItem;
 import me.randomhashtags.slotbot.addon.PathCustomItem;
 import me.randomhashtags.slotbot.universal.UInventory;
+import me.randomhashtags.slotbot.universal.USound;
 import me.randomhashtags.slotbot.util.ChatUtils;
+import me.randomhashtags.slotbot.util.CustomSound;
 import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -23,7 +26,10 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 
 public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
     INSTANCE;
@@ -41,11 +47,12 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
     private int withdrawTicketsSlot, spinnerSlot, previewRewardsSlot;
     private List<Integer> ticketSlots;
     private List<String> rewards;
-    private List<ItemStack> previewRewardList;
 
     private HashMap<Player, HashMap<Integer, List<Integer>>> rollingTasks;
     private HashMap<Player, List<Integer>> pending;
     private HashMap<Integer, HashSet<Integer>> slots;
+
+    private HashMap<String, CustomSound> sounds;
 
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         final boolean isPlayer = sender instanceof Player;
@@ -55,6 +62,7 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
                 case "reload":
                     if(sender.hasPermission("SlotBot.reload")) {
                         SLOT_BOT.reload();
+                        sender.sendMessage(colorize("&6[SlotBot] &aSuccessfully reloaded"));
                     } else if(isPlayer) {
                         view((Player) sender);
                     }
@@ -97,6 +105,22 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
         item = new ItemStack(Material.APPLE);
         itemMeta = item.getItemMeta();
         lore = new ArrayList<>();
+
+        sounds = new HashMap<>();
+        final String[] soundStrings = new String[] {
+                "cancelled",
+                "withdraw tickets",
+                "insert ticket",
+                "started spinning",
+                "spinning",
+                "finished spinning",
+        };
+        for(String s : soundStrings) {
+            final String target = SLOT_BOT_CONFIG.getString("sounds." + s);
+            if(target != null) {
+                sounds.put(s, new CustomSound(target));
+            }
+        }
 
         ticket = createItemStack(SLOT_BOT_CONFIG, "items.ticket");
         final CustomItem ticketItem = new PathCustomItem("slotbotticket", ticket, null);
@@ -169,8 +193,8 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
         previewRewardsSlot = SLOT_BOT_CONFIG.getInt("items.preview rewards.slot");
         previewRewards = createItemStack(SLOT_BOT_CONFIG, "items.preview rewards");
         itemMeta = previewRewards.getItemMeta(); lore.clear();
-        previewRewardList = new ArrayList<>();
 
+        final List<ItemStack> previewRewardList = new ArrayList<>();
         final List<String> actualRewards = new ArrayList<>();
         for(String s : itemMeta.getLore()) {
             if(s.contains("{AMOUNT}") && s.contains("{ITEM}")) {
@@ -205,6 +229,17 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
                 player.closeInventory();
             }
             HandlerList.unregisterAll(this);
+        }
+    }
+
+    private void playSound(Player player, String identifier) {
+        final CustomSound sound = sounds.getOrDefault(identifier, null);
+        if(sound != null) {
+            final USound usound = sound.getUSound();
+            final Sound realSound = usound.getSound();
+            if(realSound != null) {
+                usound.playSound(player, sound.getVolume(), sound.getPitch());
+            }
         }
     }
 
@@ -253,6 +288,7 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
             top.setItem(withdrawTicketsSlot, background);
             top.setItem(spinnerSlot, spinnerMissingTickets);
             player.updateInventory();
+            playSound(player, "withdraw tickets");
         }
     }
     public int getInsertedTickets(@NotNull Player player) {
@@ -285,6 +321,7 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
             item.setAmount(inserted+1);
             top.setItem(slot, item);
             player.updateInventory();
+            playSound(player, "insert ticket");
         }
     }
     public boolean trySpinning(@NotNull Player player, int slot, @NotNull ItemStack targetItem) {
@@ -308,6 +345,7 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
                 for(int rewardSlot : insertedTickets) {
                     startRolling(player, top, rewardSlot);
                 }
+                playSound(player, "started spinning");
                 return true;
             }
         } else if(ticketSlots.contains(slot) && !ticketUnlocked.isSimilar(targetItem)) {
@@ -315,10 +353,14 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
             final int index = ticketSlots.indexOf(slot);
             replacements.put("{AMOUNT}", Integer.toString(index+1));
             sendStringListMessage(player, getStringList(SLOT_BOT_CONFIG, "messages.slot requires ticket"), replacements);
+            playSound(player, "cancelled");
         }
         return false;
     }
-    private void updateRandomLoot(Player player, Inventory top, int rewardSlot, boolean isRandom) {
+    private void updateRandomLoot(Player player, Inventory top, int rewardSlot, boolean isRandom, boolean playSound) {
+        if(playSound) {
+            playSound(player, "spinning");
+        }
         final int size = rewards.size();
         top.setItem(rewardSlot, isRandom ? createItemStack(null, rewards.get(RANDOM.nextInt(size))) : null);
         for(int value : slots.get(rewardSlot)) {
@@ -341,28 +383,29 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
         final List<Integer> tasks = slotTasks.get(rewardSlot);
         pending.get(player).add(rewardSlot);
 
-        updateRandomLoot(player, top, rewardSlot, true);
+        updateRandomLoot(player, top, rewardSlot, true, false);
         for(int i = 1; i <= 10; i++) {
             tasks.add(SCHEDULER.scheduleSyncDelayedTask(SLOT_BOT, () -> {
-                updateRandomLoot(player, top, rewardSlot, true);
+                updateRandomLoot(player, top, rewardSlot, true, true);
             }, i*5));
         }
         for(int i = 1; i <= 10; i++) {
             final int I = i;
             tasks.add(SCHEDULER.scheduleSyncDelayedTask(SLOT_BOT, () -> {
-                updateRandomLoot(player, top, rewardSlot, true);
+                updateRandomLoot(player, top, rewardSlot, true, true);
                 if(I == 10) {
-                    stopRolling(player, rewardSlot);
+                    stopRolling(player, rewardSlot, true);
                 }
             }, 50+(i*10)));
         }
     }
     public void stopRolling(@NotNull Player player) {
         for(int rewardSlot : slots.keySet()) {
-            stopRolling(player, rewardSlot);
+            stopRolling(player, rewardSlot, false);
         }
+        playSound(player, "finished spinning");
     }
-    public void stopRolling(@NotNull Player player, int rewardSlot) {
+    public void stopRolling(@NotNull Player player, int rewardSlot, boolean playSound) {
         if(pending.containsKey(player) && pending.get(player).contains(rewardSlot) && rollingTasks.containsKey(player)) {
             final HashMap<Integer, List<Integer>> tasks = rollingTasks.get(player);
             if(tasks.containsKey(rewardSlot)) {
@@ -375,6 +418,9 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
                 }
                 tasks.remove(rewardSlot);
                 player.updateInventory();
+                if(playSound) {
+                    playSound(player, "finished spinning");
+                }
             }
         }
     }

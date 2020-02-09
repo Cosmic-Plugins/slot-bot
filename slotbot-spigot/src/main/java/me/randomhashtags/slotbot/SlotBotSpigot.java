@@ -33,8 +33,8 @@ public final class SlotBotSpigot extends JavaPlugin {
     }
     public void disable() {
         placeholderapi = false;
-        CustomItemsAPI.INSTANCE.unload();
         SlotBotAPI.INSTANCE.unload();
+        CustomItemsAPI.INSTANCE.unload();
     }
 
     public void reload() {

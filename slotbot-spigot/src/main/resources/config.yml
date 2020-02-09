@@ -17,11 +17,13 @@ messages:
       - " "
 #
 sounds:
-  cancelled sound: ENTITY_VILLAGER_NO
+  cancelled: "ENTITY_VILLAGER_NO:1:1"
+  withdraw tickets: "ENTITY_VILLAGER_YES:1:2"
   #
-  insert ticket: PLAYER_EXP_LEVELUP
-  started spinning: PLAYER_EXP_LEVELUP
-  finished spinning: PLAYER_EXP_LEVELUP
+  insert ticket: "ENTITY_EXPERIENCE_ORB_PICKUP:1:1"
+  started spinning: "ENTITY_EXPERIENCE_ORB_PICKUP:1:2"
+  spinning: "ENTITY_EXPERIENCE_ORB_PICKUP:1:3"
+  finished spinning: "ENTITY_PLAYER_LEVELUP:1:1"
 #
 items:
   ticket:
