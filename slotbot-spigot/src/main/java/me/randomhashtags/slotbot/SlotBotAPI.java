@@ -1,6 +1,8 @@
 package me.randomhashtags.slotbot;
 
 import com.sun.istack.internal.NotNull;
+import me.randomhashtags.slotbot.addon.CustomItem;
+import me.randomhashtags.slotbot.addon.PathCustomItem;
 import me.randomhashtags.slotbot.universal.UInventory;
 import me.randomhashtags.slotbot.util.ChatUtils;
 import net.md_5.bungee.api.chat.TextComponent;
@@ -97,7 +99,8 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
         lore = new ArrayList<>();
 
         ticket = createItemStack(SLOT_BOT_CONFIG, "items.ticket");
-        CUSTOM_ITEMS.put("slotbotticket", ticket);
+        final CustomItem ticketItem = new PathCustomItem("slotbotticket", ticket, null);
+        CUSTOM_ITEMS.put("slotbotticket", ticketItem);
 
         ticketLocked = createItemStack(SLOT_BOT_CONFIG, "items.ticket locked");
         ticketUnlocked = createItemStack(SLOT_BOT_CONFIG, "items.ticket unlocked");

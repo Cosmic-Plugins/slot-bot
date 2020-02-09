@@ -6,3 +6,11 @@ big boie:
     - "Enchants{Sharpness10;Unbreaking20}"
     - "&7This item's identifier to use in"
     - "&7the slot bot rewards is &fbig boie"
+#
+custom command brother:
+  item: "ender_chest"
+  name: "&7Your Lucky Day"
+  lore:
+    - "&7Right-Click to claim $25,000!"
+  commands:
+    - "eco give %player% 25000"

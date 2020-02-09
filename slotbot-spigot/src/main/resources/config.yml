@@ -16,6 +16,13 @@ messages:
       - "&b&l*&r &f&l{AMOUNT}x&r {ITEM}"
       - " "
 #
+sounds:
+  cancelled sound: ENTITY_VILLAGER_NO
+  #
+  insert ticket: PLAYER_EXP_LEVELUP
+  started spinning: PLAYER_EXP_LEVELUP
+  finished spinning: PLAYER_EXP_LEVELUP
+#
 items:
   ticket:
     item: "paper"
@@ -165,6 +172,7 @@ gui:
 rewards:
   - "slotbotticket"
   - "big boie"
+  - "custom command brother"
   - "carrot;amount=32"
   - "potato;amount=16"
   - "experience_bottle;amount=16-32"

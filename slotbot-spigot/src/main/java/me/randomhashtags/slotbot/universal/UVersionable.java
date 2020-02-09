@@ -2,6 +2,7 @@ package me.randomhashtags.slotbot.universal;
 
 import com.sun.istack.internal.NotNull;
 import me.randomhashtags.slotbot.SlotBotSpigot;
+import me.randomhashtags.slotbot.addon.CustomItem;
 import me.randomhashtags.slotbot.util.Versionable;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -23,7 +24,7 @@ import java.io.File;
 import java.util.*;
 
 public interface UVersionable extends Versionable {
-    HashMap<String, ItemStack> CUSTOM_ITEMS = new HashMap<>();
+    HashMap<String, CustomItem> CUSTOM_ITEMS = new HashMap<>();
 
     SlotBotSpigot SLOT_BOT = SlotBotSpigot.getPlugin;
     FileConfiguration SLOT_BOT_CONFIG = SLOT_BOT.getConfig();
@@ -244,10 +245,11 @@ public interface UVersionable extends Versionable {
                 return null;
             }
 
-            final ItemStack customItem = getClone(CUSTOM_ITEMS.getOrDefault(itemPath, CUSTOM_ITEMS.getOrDefault(itemPathLC, null)));
+            final CustomItem customItem = CUSTOM_ITEMS.getOrDefault(itemPath, CUSTOM_ITEMS.getOrDefault(itemPathLC, null));
             if(customItem != null) {
-                customItem.setAmount(amount);
-                return customItem;
+                final ItemStack is = getClone(customItem.getItem());
+                is.setAmount(amount);
+                return is;
             }
 
             String name = config != null ? config.getString(path + ".name") : null;
