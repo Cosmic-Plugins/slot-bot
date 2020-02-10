@@ -29,7 +29,10 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.io.File;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 
 public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
     INSTANCE;
@@ -537,17 +540,33 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
             for(CustomItem customItem : executeCustomItemCommands) {
                 customItem.executeCommands(player);
             }
+            player.updateInventory();
         }
     }
 
     @EventHandler
     private void inventoryCloseEvent(InventoryCloseEvent event) {
         final Player player = (Player) event.getPlayer();
-        if(rollingTasks.containsKey(player)) {
-            stopRolling(player);
-            rollingTasks.remove(player);
+        final boolean isSpinning = rollingTasks.containsKey(player);
+        final boolean isInSlotBot = isSpinning || unrolledTickets.containsKey(player);
+        if(isInSlotBot) {
+            if(isSpinning) {
+                final int size = rollingTasks.get(player).size();
+                if(size > 0) {
+                    if(isSlotBotSettingEnabled(SlotBotSetting.INVENTORY_IS_CLOSEABLE_WHEN_SPINNING)) {
+                        stopRolling(player);
+                        rollingTasks.remove(player);
+                    } else {
+                        final Inventory inv = event.getInventory();
+                        SCHEDULER.scheduleSyncDelayedTask(SLOT_BOT, () -> {
+                            player.openInventory(inv);
+                        }, 0);
+                        return;
+                    }
+                }
+            }
+            giveLoot(player);
         }
-        giveLoot(player);
     }
     @EventHandler
     private void playerInteractEvent(PlayerInteractEvent event) {

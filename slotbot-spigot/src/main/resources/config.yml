@@ -28,6 +28,7 @@ sounds:
 settings:
   always random loot: false # rewards are always random instead of like a real Slot Machine
   instant custom item command execution: false # the player won't receive the Custom Item if it executes commands
+  inventory is closeable when spinning: true # if true, the player will obtain the rewards in the Reward Slots. If false, they have to wait until it is done spinning
 #
 items:
   ticket:
