@@ -24,6 +24,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -575,6 +576,12 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
             event.setCancelled(true);
             event.getPlayer().updateInventory();
         }
+    }
+    @EventHandler
+    private void playerQuitEvent(PlayerQuitEvent event) {
+        final Player player = event.getPlayer();
+        stopRolling(player);
+        giveLoot(player);
     }
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     private void inventoryClickEvent(InventoryClickEvent event) {
