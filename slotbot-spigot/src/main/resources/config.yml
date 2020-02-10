@@ -25,6 +25,10 @@ sounds:
   spinning: "ENTITY_EXPERIENCE_ORB_PICKUP:1:3"
   finished spinning: "ENTITY_PLAYER_LEVELUP:1:1"
 #
+settings:
+  always random loot: false # rewards are always random instead of like a real Slot Machine
+  instant custom item command execution: false # the player won't receive the Custom Item if it executes commands
+#
 items:
   ticket:
     item: "paper"

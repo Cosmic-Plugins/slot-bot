@@ -1,6 +1,7 @@
 package me.randomhashtags.slotbot;
 
 import com.sun.istack.internal.NotNull;
+import com.sun.istack.internal.Nullable;
 import me.randomhashtags.slotbot.addon.CustomItem;
 import me.randomhashtags.slotbot.addon.PathCustomItem;
 import me.randomhashtags.slotbot.universal.UInventory;
@@ -14,6 +15,7 @@ import org.bukkit.Sound;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -26,10 +28,8 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
+import java.io.File;
+import java.util.*;
 
 public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
     INSTANCE;
@@ -37,6 +37,8 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
     private boolean isEnabled;
     private UInventory gui, preview;
     public ItemStack ticket;
+
+    private YamlConfiguration SLOT_BOT_CONFIG;
 
     private ItemStack item;
     private ItemMeta itemMeta;
@@ -49,10 +51,11 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
     private List<String> rewards;
 
     private HashMap<Player, HashMap<Integer, List<Integer>>> rollingTasks;
-    private HashMap<Player, List<Integer>> pending;
-    private HashMap<Integer, HashSet<Integer>> slots;
+    private HashMap<Player, List<Integer>> pendingRewardSlots, unrolledTickets;
+    private HashMap<Integer, List<Integer>> slots;
 
     private HashMap<String, CustomSound> sounds;
+    private HashMap<SlotBotSetting, Boolean> settings;
 
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         final boolean isPlayer = sender instanceof Player;
@@ -101,6 +104,8 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
         isEnabled = true;
         final long started = System.currentTimeMillis();
 
+        SLOT_BOT_CONFIG = YamlConfiguration.loadConfiguration(new File(SLOT_BOT.getDataFolder() + File.separator, "config.yml"));
+
         PLUGIN_MANAGER.registerEvents(this, SLOT_BOT);
         item = new ItemStack(Material.APPLE);
         itemMeta = item.getItemMeta();
@@ -120,6 +125,11 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
             if(target != null) {
                 sounds.put(s, new CustomSound(target));
             }
+        }
+
+        settings = new HashMap<>();
+        for(SlotBotSetting setting : SlotBotSetting.values()) {
+            settings.put(setting, SLOT_BOT_CONFIG.getBoolean("settings." + setting.name().toLowerCase().replace("_", " ")));
         }
 
         ticket = createItemStack(SLOT_BOT_CONFIG, "items.ticket");
@@ -156,7 +166,7 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
         for(String key : getConfigurationSectionKeys(SLOT_BOT_CONFIG, "gui.reward slots", false)) {
             final int slot = Integer.parseInt(key);
             inv.setItem(slot, rewardSlot);
-            final HashSet<Integer> rewardSlots = new HashSet<>();
+            final List<Integer> rewardSlots = new ArrayList<>();
             for(String s : SLOT_BOT_CONFIG.getStringList("gui.reward slots." + key)) {
                 final int rewardSlot = Integer.parseInt(s);
                 inv.setItem(rewardSlot, randomizedLootPlaceholder);
@@ -187,7 +197,8 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
         }
 
         rollingTasks = new HashMap<>();
-        pending = new HashMap<>();
+        pendingRewardSlots = new HashMap<>();
+        unrolledTickets = new HashMap<>();
         rewards = SLOT_BOT_CONFIG.getStringList("rewards");
 
         previewRewardsSlot = SLOT_BOT_CONFIG.getInt("items.preview rewards.slot");
@@ -225,7 +236,7 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
     public void unload() {
         if(isEnabled) {
             isEnabled = false;
-            for(Player player : new ArrayList<>(pending.keySet())) {
+            for(Player player : new ArrayList<>(pendingRewardSlots.keySet())) {
                 player.closeInventory();
             }
             HandlerList.unregisterAll(this);
@@ -242,6 +253,10 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
             }
         }
     }
+    public boolean isSlotBotSettingEnabled(@NotNull SlotBotSetting setting) {
+        return settings.getOrDefault(setting, false);
+    }
+
 
     private ItemStack getTicketLocked(int ticketAmount) {
         item = ticketLocked.clone();
@@ -269,27 +284,27 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
     }
     public void tryWithdrawingTickets(@NotNull Player player) {
         final Inventory top = player.getOpenInventory().getTopInventory();
-        if(withdrawTickets.isSimilar(top.getItem(withdrawTicketsSlot))) {
-            int ticketAmount = 0;
-            final boolean isPending = pending.containsKey(player);
-            final List<Integer> pendingSlots = isPending ? pending.get(player) : null;
-            final List<Integer> keySet = new ArrayList<>(slots.keySet());
-            for(int i : ticketSlots) {
-                final int rewardSlot = keySet.get(ticketAmount);
-                ticketAmount++;
-                if(ticketUnlocked.isSimilar(top.getItem(i)) && (!isPending || !pendingSlots.contains(rewardSlot))) {
-                    giveItem(player, ticket);
-                    top.setItem(i, getTicketLocked(keySet.indexOf(rewardSlot)+1));
-                    for(int slot : slots.get(rewardSlot)) {
-                        top.setItem(slot, randomizedLootPlaceholder);
-                    }
+        int ticketAmount = 0;
+        final boolean isUnrolled = unrolledTickets.containsKey(player);
+        final List<Integer> unrolledSlots = isUnrolled ? unrolledTickets.get(player) : null;
+        final List<Integer> keySet = new ArrayList<>(slots.keySet());
+        for(int i : ticketSlots) {
+            final int rewardSlot = keySet.get(ticketAmount);
+            ticketAmount++;
+            final boolean isActuallyUnrolled = isUnrolled && unrolledSlots.contains(rewardSlot);
+            if(ticketUnlocked.isSimilar(top.getItem(i)) && isActuallyUnrolled) {
+                giveItem(player, ticket);
+                top.setItem(i, getTicketLocked(keySet.indexOf(rewardSlot)+1));
+                for(int slot : slots.get(rewardSlot)) {
+                    top.setItem(slot, randomizedLootPlaceholder);
                 }
             }
-            top.setItem(withdrawTicketsSlot, background);
-            top.setItem(spinnerSlot, spinnerMissingTickets);
-            player.updateInventory();
-            playSound(player, "withdraw tickets");
         }
+        top.setItem(withdrawTicketsSlot, background);
+        top.setItem(spinnerSlot, spinnerMissingTickets);
+        player.updateInventory();
+        playSound(player, "withdraw tickets");
+        unrolledTickets.remove(player);
     }
     public int getInsertedTickets(@NotNull Player player) {
         final Inventory top = player.getOpenInventory().getTopInventory();
@@ -322,6 +337,11 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
             top.setItem(slot, item);
             player.updateInventory();
             playSound(player, "insert ticket");
+
+            if(!unrolledTickets.containsKey(player)) {
+                unrolledTickets.put(player, new ArrayList<>());
+            }
+            unrolledTickets.get(player).add(slots.keySet().toArray(new Integer[slots.size()])[inserted]);
         }
     }
     public boolean trySpinning(@NotNull Player player, int slot, @NotNull ItemStack targetItem) {
@@ -329,18 +349,19 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
             final Inventory top = player.getOpenInventory().getTopInventory();
             top.setItem(withdrawTicketsSlot, background);
             List<Integer> insertedTickets = new ArrayList<>();
-            final boolean isPending = pending.containsKey(player);
-            final List<Integer> pendingSlots = isPending ? pending.get(player) : null;
+            final boolean isUnrolled = unrolledTickets.containsKey(player);
+            final List<Integer> unrolledSlots = isUnrolled ? unrolledTickets.get(player) : null;
             int ticket = 0;
-            for(int i : ticketSlots) {
-                if(ticketUnlocked.isSimilar(top.getItem(i))) {
+            for(int ticketSlot : ticketSlots) {
+                if(ticketUnlocked.isSimilar(top.getItem(ticketSlot))) {
                     final int rewardSlot = (int) slots.keySet().toArray()[ticket];
-                    if(!isPending || !pendingSlots.contains(rewardSlot)) {
+                    if(isUnrolled && unrolledSlots.contains(rewardSlot)) {
                         insertedTickets.add(rewardSlot);
                     }
                     ticket++;
                 }
             }
+            unrolledTickets.remove(player);
             if(!insertedTickets.isEmpty()) {
                 for(int rewardSlot : insertedTickets) {
                     startRolling(player, top, rewardSlot);
@@ -357,14 +378,35 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
         }
         return false;
     }
+    private ItemStack getRandomReward(int size) {
+        return createItemStack(null, rewards.get(RANDOM.nextInt(size)));
+    }
     private void updateRandomLoot(Player player, Inventory top, int rewardSlot, boolean isRandom, boolean playSound) {
         if(playSound) {
             playSound(player, "spinning");
         }
         final int size = rewards.size();
-        top.setItem(rewardSlot, isRandom ? createItemStack(null, rewards.get(RANDOM.nextInt(size))) : null);
-        for(int value : slots.get(rewardSlot)) {
-            top.setItem(value, isRandom ? createItemStack(null, rewards.get(RANDOM.nextInt(size))) : null);
+
+        final List<Integer> slots = new ArrayList<>(this.slots.get(rewardSlot));
+        slots.add(rewardSlot);
+        Collections.sort(slots);
+        final List<ItemStack> previousRewards = new ArrayList<>();
+        previousRewards.add(null);
+
+        if(!isRandom) {
+            for(int slot : slots) {
+                previousRewards.add(top.getItem(slot));
+            }
+        }
+        top.setItem(slots.get(0), getRandomReward(size));
+        int index = 0;
+        for(int slot : slots) {
+            ItemStack target = isRandom ? getRandomReward(size) : previousRewards.get(index);
+            if(target == null) {
+                target = getRandomReward(size);
+            }
+            top.setItem(slot, target);
+            index++;
         }
         player.updateInventory();
     }
@@ -372,8 +414,8 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
         if(!rollingTasks.containsKey(player)) {
             rollingTasks.put(player, new HashMap<>());
         }
-        if(!pending.containsKey(player)) {
-            pending.put(player, new ArrayList<>());
+        if(!pendingRewardSlots.containsKey(player)) {
+            pendingRewardSlots.put(player, new ArrayList<>());
         }
         final HashMap<Integer, List<Integer>> slotTasks = rollingTasks.get(player);
         if(!slotTasks.containsKey(rewardSlot)) {
@@ -381,18 +423,20 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
         }
 
         final List<Integer> tasks = slotTasks.get(rewardSlot);
-        pending.get(player).add(rewardSlot);
+        pendingRewardSlots.get(player).add(rewardSlot);
+
+        final boolean isRandom = isSlotBotSettingEnabled(SlotBotSetting.ALWAYS_RANDOM_LOOT);
 
         updateRandomLoot(player, top, rewardSlot, true, false);
         for(int i = 1; i <= 10; i++) {
             tasks.add(SCHEDULER.scheduleSyncDelayedTask(SLOT_BOT, () -> {
-                updateRandomLoot(player, top, rewardSlot, true, true);
+                updateRandomLoot(player, top, rewardSlot, isRandom, true);
             }, i*5));
         }
         for(int i = 1; i <= 10; i++) {
             final int I = i;
             tasks.add(SCHEDULER.scheduleSyncDelayedTask(SLOT_BOT, () -> {
-                updateRandomLoot(player, top, rewardSlot, true, true);
+                updateRandomLoot(player, top, rewardSlot, isRandom, true);
                 if(I == 10) {
                     stopRolling(player, rewardSlot, true);
                 }
@@ -406,7 +450,8 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
         playSound(player, "finished spinning");
     }
     public void stopRolling(@NotNull Player player, int rewardSlot, boolean playSound) {
-        if(pending.containsKey(player) && pending.get(player).contains(rewardSlot) && rollingTasks.containsKey(player)) {
+        final List<Integer> pendingSlots = pendingRewardSlots.getOrDefault(player, null);
+        if(pendingSlots != null && pendingSlots.contains(rewardSlot) && rollingTasks.containsKey(player)) {
             final HashMap<Integer, List<Integer>> tasks = rollingTasks.get(player);
             if(tasks.containsKey(rewardSlot)) {
                 for(int task : tasks.get(rewardSlot)) {
@@ -424,22 +469,58 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
             }
         }
     }
+    public boolean isCustomItemThatInstantlyExecutesCommands(@Nullable ItemStack is) {
+        return isCustomItemThatInstantlyExecutesCommands(CustomItemsAPI.INSTANCE.valueOf(is));
+    }
+    public boolean isCustomItemThatInstantlyExecutesCommands(@Nullable CustomItem customItem) {
+        return customItem != null && isSlotBotSettingEnabled(SlotBotSetting.INSTANT_CUSTOM_ITEM_COMMAND_EXECUTION) && customItem.doesExecuteCommands();
+    }
     private void giveLoot(Player player) {
-        if(pending.containsKey(player)) {
+        final List<ItemStack> items = new ArrayList<>();
+        final List<CustomItem> executeCustomItemCommands = new ArrayList<>();
+        final int slotsSize = slots.size();
+        int tickets = 0;
+        if(pendingRewardSlots.containsKey(player)) {
             final Inventory top = player.getOpenInventory().getTopInventory();
-            final List<ItemStack> items = new ArrayList<>();
-            final String tickets = Integer.toString(getInsertedTickets(player)), playerName = player.getName();
+            int ticketsInserted = getInsertedTickets(player);
+            tickets += ticketsInserted;
+
             for(int i : slots.keySet()) {
                 item = top.getItem(i);
-                if(item != null && !rewardSlot.isSimilar(item)) {
-                    itemMeta = item.getItemMeta();
-                    items.add(item);
-                    giveItem(player, item);
+                if(item != null && ticketsInserted > 0) {
+                    if(!rewardSlot.isSimilar(item)) {
+                        items.add(item);
+                        ticketsInserted -= 1;
+                    } else {
+                        tickets -= 1;
+                    }
                 }
             }
+            pendingRewardSlots.remove(player);
+        }
+        if(unrolledTickets.containsKey(player)) {
+            final List<Integer> unrolledPlayerTickets = unrolledTickets.get(player);
+            final int size = unrolledPlayerTickets.size();
+            tickets += size;
+            for(int i = 1; i <= size; i++) {
+                items.add(getRandomReward(slotsSize));
+            }
+            unrolledTickets.remove(player);
+        }
+
+        if(!items.isEmpty()) {
+            for(ItemStack is : items) {
+                final CustomItem customItem = CustomItemsAPI.INSTANCE.valueOf(is);
+                if(isCustomItemThatInstantlyExecutesCommands(customItem)) {
+                    executeCustomItemCommands.add(customItem);
+                } else {
+                    giveItem(player, is);
+                }
+            }
+            final String playerName = player.getName(), ticketsInserted = Integer.toString(tickets);
             final boolean isCentered = SLOT_BOT_CONFIG.getBoolean("messages.loot.centered");
             for(String s : getStringList(SLOT_BOT_CONFIG, "messages.loot.msg")) {
-                s = s.replace("{PLAYER}", playerName).replace("{TICKETS}", tickets);
+                s = s.replace("{PLAYER}", playerName).replace("{TICKETS}", ticketsInserted);
                 if(s.contains("{AMOUNT}") && s.contains("{ITEM}")) {
                     for(ItemStack is : items) {
                         itemMeta = is.getItemMeta();
@@ -453,7 +534,9 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
                     Bukkit.broadcastMessage(isCentered ? center(s, 70) : s);
                 }
             }
-            pending.remove(player);
+            for(CustomItem customItem : executeCustomItemCommands) {
+                customItem.executeCommands(player);
+            }
         }
     }
 

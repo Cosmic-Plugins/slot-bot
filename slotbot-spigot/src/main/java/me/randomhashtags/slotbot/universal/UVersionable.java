@@ -27,7 +27,6 @@ public interface UVersionable extends Versionable {
     HashMap<String, CustomItem> CUSTOM_ITEMS = new HashMap<>();
 
     SlotBotSpigot SLOT_BOT = SlotBotSpigot.getPlugin;
-    FileConfiguration SLOT_BOT_CONFIG = SLOT_BOT.getConfig();
     Server SERVER = Bukkit.getServer();
     PluginManager PLUGIN_MANAGER = Bukkit.getPluginManager();
     Random RANDOM = new Random();

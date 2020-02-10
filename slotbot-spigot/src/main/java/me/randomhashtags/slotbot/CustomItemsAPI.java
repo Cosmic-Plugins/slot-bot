@@ -15,7 +15,6 @@ import org.bukkit.inventory.ItemStack;
 
 import java.io.File;
 import java.util.Collection;
-import java.util.List;
 
 public enum CustomItemsAPI implements Listener, UVersionable {
     INSTANCE;
@@ -70,12 +69,7 @@ public enum CustomItemsAPI implements Listener, UVersionable {
             final Player player = event.getPlayer();
             event.setCancelled(true);
             player.updateInventory();
-            final List<String> commands = item.getCommands();
-            if(commands != null) {
-                final String playerName = player.getName();
-                for(String cmd : commands) {
-                    SERVER.dispatchCommand(CONSOLE, cmd.replace("%player%", playerName));
-                }
+            if(item.executeCommands(player)) {
                 removeItem(player, is, 1);
             }
         }
