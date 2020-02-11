@@ -604,7 +604,9 @@ public enum SlotBotAPI implements Listener, CommandExecutor, ChatUtils {
                         tryInsertingTicket(player);
                     }
                 } else if(slot == previewRewardsSlot) {
-                    viewPreview(player);
+                    if(!rollingTasks.containsKey(player) || rollingTasks.get(player).size() == 0) {
+                        viewPreview(player);
+                    }
                 } else if(current.isSimilar(spinnerMissingTickets)) {
                     sendStringListMessage(player, getStringList(SLOT_BOT_CONFIG, "messages.missing tickets"), null);
                 } else if(current.isSimilar(spinnerReadyToSpin)) {
